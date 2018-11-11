@@ -1,6 +1,7 @@
-// Type definitions for phoenix
+// Type definitions for phoenix 1.4.0
 // Project: https://github.com/phoenixframework/phoenix
 // Definitions by: Mirosław Ciastek <https://github.com/mciastek>
+//                 Christian Wesselhoeft <https://github.com/xtian>
 // Definitions: https://github.com/DefinitelyTyped/DefinitelyTyped
 
 declare module "phoenix" {
@@ -14,53 +15,46 @@ declare module "phoenix" {
   }
 
   export class Channel {
-    constructor(topic: string, params?: Object, socket?: Socket);
-
-    rejoinUntilConnected(): void;
+    constructor(topic: string, params?: object | (() => object), socket?: Socket);
 
     join(timeout?: number): Push;
     leave(timeout?: number): Push;
 
-    onClose(callback: Function): void;
+    onClose(callback: (payload: any, ref: any, joinRef: any) => void): void;
     onError(callback: (reason?: any) => void): void;
-    onMessage(event: string, payload: any, ref: any): any;
+    onMessage(event: string, payload: any, ref: number): any;
 
-    on(event: string, callback: (response?: any) => void): void;
-    off(event: string): void;
+    on(event: string, callback: (response?: any) => void): number;
+    off(event: string, ref?: number): void;
 
-    canPush(): boolean;
-
-    push(event: string, payload: Object, timeout?: number): Push;
+    push(event: string, payload: object, timeout?: number): Push;
   }
 
   export class Socket {
-    constructor(endPoint: string, opts?: Object);
+    constructor(endPoint: string, opts?: SocketOpts);
 
     protocol(): string;
     endPointURL(): string;
 
-    disconnect(callback?: Function, code?: string, reason?: any): void;
-    connect(params?: any): void;
+    disconnect(callback?: () => void, code?: number, reason?: string): void;
+    connect(params?: object): void;
 
     log(kind: string, msg: string, data: any): void;
+    hasLogger(): boolean;
 
-    onOpen(callback: Function): void;
-    onClose(callback: Function): void;
-    onError(callback: Function): void;
-    onMessage(callback: Function): void;
+    onOpen(callback: () => void): void;
+    onClose(callback: () => void): void;
+    onError(callback: () => void): void;
+    onMessage(callback: () => void): void;
 
-    onConnOpen(): void;
     onConnClose(event: any): void;
-    onConnError(error: any): void;
-
-    triggerChanError(): void;
 
     connectionState(): string;
 
     isConnected(): boolean;
 
     remove(channel: Channel): void;
-    channel(topic: string, chanParams?: Object): Channel;
+    channel(topic: string, chanParams?: object): Channel;
 
     push(data: any): void;
 
@@ -69,6 +63,18 @@ declare module "phoenix" {
     flushSendBuffer(): void;
 
     onConnMessage(rawMessage: any): void;
+  }
+
+  export interface SocketOpts {
+    transport?: string;
+    encode?: (payload: any, callback: (encoded: any) => void) => void;
+    decode?: (payload: any, callback: (decoded: any) => void) => void;
+    timeout?: number;
+    heartbeatIntervalMs?: number;
+    reconnectAfterMs?: number;
+    logger?: (kind: string, msg: string, data: object) => void;
+    longpollerTimeout?: number;
+    params?: object | (() => object);
   }
 
   export class LongPoll {
@@ -87,7 +93,7 @@ declare module "phoenix" {
   }
 
   export class Ajax {
-    request(
+    static request(
       method: string,
       endPoint: string,
       accept: string,
@@ -97,7 +103,7 @@ declare module "phoenix" {
       callback?: (response?: any) => void
     ): void;
 
-    xdomainRequest(
+    static xdomainRequest(
       req: any,
       method: string,
       endPoint: string,
@@ -107,7 +113,7 @@ declare module "phoenix" {
       callback?: (response?: any) => void
     ): void;
 
-    xhrRequest(
+    static xhrRequest(
       req: any,
       method: string,
       endPoint: string,
@@ -118,26 +124,52 @@ declare module "phoenix" {
       callback?: (response?: any) => void
     ): void;
 
-    parseJSON(resp: string): JSON;
-    serialize(obj: any, parentKey: string): string;
-    appendParams(url: string, params: any): string;
+    static parseJSON(resp: string): JSON;
+    static serialize(obj: any, parentKey: string): string;
+    static appendParams(url: string, params: any): string;
   }
 
-  export var Presence: {
-    syncState(
+  export class Presence {
+    static syncState(
       currentState: any,
       newState: any,
-      onJoin?: (key?: string, currentPresence?: any, newPresence?: any) => void,
-      onLeave?: (key?: string, currentPresence?: any, newPresence?: any) => void
-    ): any;
+      onJoin?: PresenceOnJoinCallback,
+      onLeave?: PresenceOnLeaveCallback
+    ): Presence;
 
-    syncDiff(
+    static syncDiff(
       currentState: any,
-      newState: any,
-      onJoin?: (key?: string, currentPresence?: any, newPresence?: any) => void,
-      onLeave?: (key?: string, currentPresence?: any, newPresence?: any) => void
-    ): any;
+      newState: { joins: any; leaves: any },
+      onJoin?: PresenceOnJoinCallback,
+      onLeave?: PresenceOnLeaveCallback
+    ): Presence;
 
-    list(presences: any, chooser?: Function): any;
+    static list(presences: object, chooser?: PresenceChooserCallback): Presence;
+
+    constructor(channel: Channel, opts?: PresenceOpts);
+
+    onJoin(callback: PresenceOnJoinCallback): void;
+    onLeave(callback: PresenceOnLeaveCallback): void;
+    onSync(callback: () => void): void;
+    list(by?: PresenceChooserCallback): Presence;
+    inPendingSyncState(): boolean;
+  }
+
+  export type PresenceChooserCallback = (key?: string, presence?: any) => any;
+
+  export type PresenceOnJoinCallback = (
+    key?: string,
+    currentPresence?: any,
+    newPresence?: any
+  ) => void;
+
+  export type PresenceOnLeaveCallback = (
+    key?: string,
+    currentPresence?: any,
+    newPresence?: any
+  ) => void;
+
+  export interface PresenceOpts {
+    events?: { state: string; diff: string };
   }
 }
